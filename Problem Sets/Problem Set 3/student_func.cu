@@ -99,6 +99,85 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
     4) Perform an exclusive scan (prefix sum) on the histogram to get
        the cumulative distribution of luminance values (this should go in the
        incoming d_cdf pointer which already has been allocated for you)       */
+   
+  __global__ void shmem_reduce_kernel_max(float * d_out, const float * d_in, size_t size){
+    extern __shared__ float sdata[];
+     
+     int myId = threadIdx.x + blockDim.x * blockIdx.x;
+     int tid = threadIdx.x;
+     
+     if(myId < size){
+        sdata[tid] = d_in[myId];
+     } else {
+        sdata[tid] = -FLT_MAX;
+     }
+     
+     __syncthreads();
+     
+     if(myId >= size){
+        if(tid == 0){
+           d_out[blockIdx.x] = -FLT_MAX;
+        }
+        return;
+     }
+     
+     for(unsigned int s = blockDim.x/2; s > 0; s>>=1){
+        if(sdata[tid] > sdata[s + tid]){
+           sdata[tid] = sdata[tid];
+        } else {
+           sdata[tid] = sdata[tid + s];
+        }
+        __syncthreads();
+     }
+     
+     if(tid == 0){
+        d_out[blockIdx.x] = sdata[0];
+     }
+     
+     
+     
+     
+  }
+   
+   __global__ void shmem_reduce_kernel_min(float * d_out, const float * d_in, size_t size){
+    extern __shared__ float sdata[];
+     
+     int myId = threadIdx.x + blockDim.x * blockIdx.x;
+     int tid = threadIdx.x;
+     
+     if(myId < size){
+        sdata[tid] = d_in[myId];
+     } else {
+        sdata[tid] = FLT_MAX;
+     }
+     
+     __syncthreads();
+     
+     if(myId >= size){
+        if(tid == 0){
+           d_out[blockIdx.x] = FLT_MAX;
+        }
+        return;
+     }
+     
+     for(unsigned int s = blockDim.x/2; s > 0; s>>=1){
+        if(sdata[tid] < sdata[s + tid]){
+           sdata[tid] = sdata[tid];
+        } else {
+           sdata[tid] = sdata[tid + s];
+        }
+        __syncthreads();
+     }
+     
+     if(tid == 0){
+        d_out[blockIdx.x] = sdata[0];
+     }
+     
+     
+     
+     
+  }
+
 
 
 }
